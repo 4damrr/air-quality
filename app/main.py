@@ -1,9 +1,12 @@
+import json
+
 import requests
 from typing import TypedDict
 
 from langchain_ollama import ChatOllama
 from langchain.tools import tool
 from langgraph.graph import StateGraph, END
+from pydantic import BaseModel
 
 # ------------------------
 # Tool
@@ -85,11 +88,25 @@ User question:
 Weather data:
 {state['weather']}
 
-Answer creatively.
 Give a decision wether it is suitable for running outdoor activities or not based on the weather data.
-""")
 
-    return {"output": response.content}
+You must return a JSON object with keys 'input', 'location', 'decision', and 'output'.
+Rules: decision should be either 'suitable' or 'not suitable' based on the weather data. If the temperature is above 30°C, or if there is rain, then it is 'not suitable'. Otherwise, it is 'suitable'.
+no extra text outside the JSON object.
+
+The input must be the same as the user question, location must be the city name, and output must be a brief explanation of the decision.
+""")
+    
+    try:
+        data = json.loads(response.content)
+    except:
+        data = {
+            "input": state["input"],
+            "location": state["location"],
+            "decision": "suitable",
+            "output": response.content
+        }
+    return {"output": data}
 
 # ------------------------
 # Graph
@@ -115,8 +132,14 @@ app = graph.compile()
 # Run
 # ------------------------
 
+class AnswerWithTemplate(BaseModel):
+    input: str
+    location: str
+    decision: str
+    output: str
+
 result = app.invoke({
-    "input": "What is the current weather in South Jakarta?"
+    "input": "What is the current weather in Bandung?"
 })
 
 print(result["output"])
